@@ -8,11 +8,12 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\ParameterBag\EnvPlaceholderParameterBag;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\Yaml\Parser;
+use PHPUnit\Framework\TestCase;
 
 /**
  * SncRedisExtensionTest
  */
-class SncRedisExtensionEnvTest extends \PHPUnit_Framework_TestCase
+class SncRedisExtensionEnvTest extends TestCase
 {
     /**
      * @see http://symfony.com/blog/new-in-symfony-3-2-runtime-environment-variables
@@ -105,6 +106,17 @@ class SncRedisExtensionEnvTest extends \PHPUnit_Framework_TestCase
     }
 
     /**
+     * Test profile option
+     */
+    public function testProfileOption()
+    {
+        $container = $this->getConfiguredContainer($this->getProfileYamlConfig());
+
+        $this->assertTrue($container->hasDefinition('snc_redis.client.default_profile'));
+        $this->assertSame('Predis\Profile\RedisVersion260', $container->getDefinition('snc_redis.client.default_profile')->getClass());
+    }
+
+    /**
      * Test valid config of the cluster option
      */
     public function testClusterOption()
@@ -156,6 +168,19 @@ clients:
 EOF;
     }
 
+    private function getProfileYamlConfig()
+    {
+        return <<<'EOF'
+clients:
+    default:
+        type: predis
+        alias: default
+        dsn: "%env(REDIS_URL)%"
+        options:
+            profile: "%env(REDIS_PROFILE)%"
+EOF;
+    }
+
     private function getContainer()
     {
         return new ContainerBuilder(new EnvPlaceholderParameterBag(array(
@@ -163,7 +188,11 @@ EOF;
             'kernel.bundles' => array(),
             'kernel.cache_dir' => sys_get_temp_dir(),
             'kernel.environment' => 'test',
-            'kernel.root_dir' => __DIR__ . '/../../'
+            'kernel.root_dir' => __DIR__ . '/../../',
+            'env(REDIS_URL)' => 'redis://localhost',
+            'env(REDIS_URL_1)' => 'redis://localhost',
+            'env(REDIS_URL_2)' => 'redis://localhost',
+            'env(REDIS_PROFILE)' => '2.6',
         )));
     }
 

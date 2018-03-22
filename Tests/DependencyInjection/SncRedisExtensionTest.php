@@ -21,11 +21,12 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Loader\XmlFileLoader;
 use Symfony\Component\DependencyInjection\ParameterBag\ParameterBag;
 use Symfony\Component\Yaml\Parser;
+use PHPUnit\Framework\TestCase;
 
 /**
  * SncRedisExtensionTest
  */
-class SncRedisExtensionTest extends \PHPUnit_Framework_TestCase
+class SncRedisExtensionTest extends TestCase
 {
     /**
      * @static
@@ -255,6 +256,8 @@ class SncRedisExtensionTest extends \PHPUnit_Framework_TestCase
 
     /**
      * Test valid XML config
+     *
+     * @doesNotPerformAssertions
      */
     public function testValidXmlConfig()
     {
@@ -285,7 +288,7 @@ class SncRedisExtensionTest extends \PHPUnit_Framework_TestCase
         $processor = new Processor();
         $config = $processor->processConfiguration($configuration, $configs);
         $this->assertCount(1, $config['clients']['default']['dsns']);
-        $this->assertEquals(new RedisDsn('redis://test'), current($config['clients']['default']['dsns']));
+        $this->assertEquals('redis://test', current($config['clients']['default']['dsns']));
     }
 
     /**
