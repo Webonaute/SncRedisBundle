@@ -4,28 +4,18 @@ services:
   - redis-server
 
 php:
-  - 5.4
-  - 5.5
-  - 5.6
   - 7.0
   - 7.1
   - 7.2
-  - hhvm
 
 matrix:
   include:
-    - php: 5.6
-      env: SYMFONY_VERSION="2.7.*" SYMFONY_DEPRECATIONS_HELPER="weak"
-    - php: 5.6
-      env: SYMFONY_VERSION="2.8.*"
-    - php: 5.6
-      env: SYMFONY_VERSION="3.0.*"
     - php: 7.1
-      env: SYMFONY_VERSION="4.0.*"
+      env: SYMFONY_VERSION="3.4.*"
     - php: 7.2
-      env: SYMFONY_VERSION="4.0.*"
-  allow_failures:
-    - php: hhvm
+      env: SYMFONY_VERSION="3.4.*"
+    - php: 7.0
+      env: COMPOSER_FLAGS="--prefer-lowest" SYMFONY_DEPRECATIONS_HELPER="weak"
 
 sudo: false
 
@@ -35,7 +25,7 @@ cache:
 
 env:
   global:
-    - SYMFONY_DEPRECATIONS_HELPER="strict"
+    - SYMFONY_DEPRECATIONS_HELPER="weak_vendors"
 
 before_install:
   - phpenv config-rm xdebug.ini || true
@@ -44,6 +34,8 @@ before_install:
   - composer self-update
   - if [ "$SYMFONY_VERSION" != "" ]; then composer require --no-update symfony/symfony:${SYMFONY_VERSION}; fi;
 
-install: composer update
+install:
+  - composer update --no-interaction --no-progress $COMPOSER_FLAGS
 
-before_script: mkdir Snc && ln -s ../ Snc/RedisBundle
+before_script:
+  - mkdir Snc && ln -s ../ Snc/RedisBundle

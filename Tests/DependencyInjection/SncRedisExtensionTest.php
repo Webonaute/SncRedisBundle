@@ -50,14 +50,13 @@ class SncRedisExtensionTest extends TestCase
         );
     }
 
-    /**
-     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
-     */
     public function testEmptyConfigLoad()
     {
         $extension = new SncRedisExtension();
         $config = array();
         $extension->load(array($config), $this->getContainer());
+
+        $this->markTestIncomplete('No assertions written for this test');
     }
 
     /**
@@ -76,12 +75,9 @@ class SncRedisExtensionTest extends TestCase
     }
 
     /**
-     * @param string $name     Name
-     * @param string $expected Expected value
-     *
-     * @dataProvider parameterValues
+     * Test default config for resulting tagged services
      */
-    public function testDefaultClientTaggedServicesConfigLoad($name, $expected)
+    public function testDefaultClientTaggedServicesConfigLoad()
     {
         $extension = new SncRedisExtension();
         $config = $this->parseYaml($this->getMinimalYamlConfig());
@@ -184,6 +180,18 @@ class SncRedisExtensionTest extends TestCase
 
     /**
      * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
+     * @expectedExceptionMessage requires it to reference either an entity manager or document manager
+     */
+    public function testInvalidDoctrineCacheConfigLoad()
+    {
+        $extension = new SncRedisExtension();
+        $config = $this->parseYaml($this->getInvalidDoctrineCacheConfig());
+        $extension->load(array($config), $this->getContainer());
+    }
+
+    /**
+     * @expectedException \Symfony\Component\Config\Definition\Exception\InvalidConfigurationException
+     * @expectedExceptionMessage You have to disable logging for the client
      */
     public function testInvalidMonologConfigLoad()
     {
@@ -312,6 +320,34 @@ class SncRedisExtensionTest extends TestCase
     }
 
     /**
+     * Test valid config of the serialization option
+     */
+    public function testClientSerializationOption()
+    {
+         $extension = new SncRedisExtension();
+         $config = $this->parseYaml($this->getSerializationYamlConfig());
+         $extension->load(array($config), $container = $this->getContainer());
+         $options = $container->getDefinition('snc_redis.client.default_options')->getArgument(0);
+         $parameters = $container->getDefinition('snc_redis.default')->getArgument(0);
+         $masterParameters = $container->getDefinition((string) $parameters[0])->getArgument(0);
+         $this->assertSame($options['serialization'], $masterParameters['serialization']);
+    }
+
+    /**
+     * Test validity of serialization type
+     */
+    public function testLoadSerializationType()
+    {
+        $extension = new SncRedisExtension();
+        $config = $this->parseYaml($this->getSerializationYamlConfig());
+        $extension->load(array($config), $container = $this->getContainer());
+        $options = $container->getDefinition('snc_redis.client.default_options')->getArgument(0);
+        $serializationType = $extension->loadSerializationType($options['serialization']);
+        $this->assertTrue(is_integer($serializationType));
+        $this->assertEquals(\Redis::SERIALIZER_NONE, $serializationType);
+    }
+
+    /**
      * Test valid config of the sentinel replication option
      */
     public function testSentinelOption()
@@ -364,13 +400,27 @@ class SncRedisExtensionTest extends TestCase
         return $parser->parse($yaml);
     }
 
+    private function getSerializationYamlConfig()
+     {
+         return <<<'EOF'
+clients:
+ default:
+     type: predis
+     alias: default
+     dsn:
+         - redis://localhost?alias=master
+         - redis://otherhost
+     options:
+         serialization: "default"
+EOF;
+    }
+
     private function getMinimalYamlConfig()
     {
         return <<<'EOF'
 clients:
     default:
         type: predis
-        alias: default
         dsn: redis://localhost
 EOF;
     }
@@ -389,7 +439,6 @@ clients:
             prefix: snc:
     cache:
         type: predis
-        alias: cache
         dsn: redis://localhost/1
         logging: true
     monolog:
@@ -448,6 +497,23 @@ swiftmailer:
 profiler_storage:
     client: default
     ttl: 3600
+EOF;
+    }
+
+    private function getInvalidDoctrineCacheConfig()
+    {
+        return <<<'EOF'
+clients:
+    cache:
+        type: predis
+        dsn: redis://localhost
+doctrine:
+    metadata_cache:
+        client: cache
+    result_cache:
+        client: cache
+    query_cache:
+        client: cache
 EOF;
     }
 

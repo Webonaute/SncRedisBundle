@@ -190,6 +190,8 @@ class RedisProfilerStorageTest extends TestCase
 
     public function testStoreTime()
     {
+        $this->markTestSkipped('This test is inherently unreliable as it depends on the execution and order of other tests');
+
         $dt = new \DateTime('now');
         $start = $dt->getTimestamp();
 

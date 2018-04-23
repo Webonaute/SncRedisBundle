@@ -78,24 +78,35 @@ class Configuration implements ConfigurationInterface
      */
     private function addClientsSection(ArrayNodeDefinition $rootNode)
     {
+        $loggingDefault = (version_compare(phpversion('redis'), '4.0.0') >= 0 ? false : $this->debug);
+
         $rootNode
             ->fixXmlConfig('client')
             ->children()
                 ->arrayNode('clients')
-                    ->isRequired()
-                    ->requiresAtLeastOneElement()
                     ->useAttributeAsKey('alias', false)
+                    ->beforeNormalization()
+                        ->always()
+                        ->then(function($v) {
+                            foreach ($v as $name => &$client) {
+                                if (!isset($client['alias'])) {
+                                    $client['alias'] = $name;
+                                }
+                            }
+                            return $v;
+                        })
+                    ->end()
                     ->prototype('array')
                         ->fixXmlConfig('dsn')
                         ->children()
                             ->scalarNode('type')->isRequired()
                                 ->validate()
-                                    ->ifTrue(function($v) { return !in_array($v, array('predis', 'phpredis')); })
+                                    ->ifNotInArray(['predis', 'phpredis'])
                                     ->thenInvalid('The redis client type %s is invalid.')
                                 ->end()
                             ->end()
                             ->scalarNode('alias')->isRequired()->end()
-                            ->booleanNode('logging')->defaultValue($this->debug)->end()
+                            ->booleanNode('logging')->defaultValue($loggingDefault)->end()
                             ->arrayNode('dsns')
                                 ->isRequired()
                                 ->performNoDeepMerging()
@@ -104,7 +115,6 @@ class Configuration implements ConfigurationInterface
                                 ->end()
                                 ->prototype('variable')->end()
                             ->end()
-                            ->scalarNode('alias')->isRequired()->end()
                             ->arrayNode('options')
                                 ->addDefaultsIfNotSet()
                                 ->children()
@@ -114,6 +124,7 @@ class Configuration implements ConfigurationInterface
                                     ->scalarNode('read_write_timeout')->defaultNull()->end()
                                     ->booleanNode('iterable_multibulk')->defaultFalse()->end()
                                     ->booleanNode('throw_errors')->defaultTrue()->end()
+                                    ->scalarNode('serialization')->defaultValue('default')->end()
                                     ->scalarNode('profile')->defaultValue('default')
                                     ->end()
                                     ->scalarNode('cluster')->defaultNull()->end()

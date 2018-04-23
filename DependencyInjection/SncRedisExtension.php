@@ -201,7 +201,7 @@ class SncRedisExtension extends Extension
         $optionDef->addArgument($client['options']);
         $container->setDefinition($optionId, $optionDef);
         $clientDef = new Definition($container->getParameter('snc_redis.client.class'));
-        $clientDef->setPublic(true);
+        $clientDef->setPublic(false);
         $clientDef->addTag('snc_redis.client', array('alias' => $client['alias']));
         if (1 === $connectionCount) {
             $clientDef->addArgument(new Reference(sprintf('snc_redis.connection.%s_parameters.%s', $connectionAliases[0], $client['alias'])));
@@ -254,6 +254,12 @@ class SncRedisExtension extends Extension
         $dsn = $client['dsns'][0];
         $phpredisId = sprintf('snc_redis.phpredis.%s', $client['alias']);
 
+        $phpRedisVersion = phpversion('redis');
+        if (version_compare($phpRedisVersion, '4.0.0') >= 0 && $client['logging']) {
+            $client['logging'] = false;
+            @trigger_error(sprintf('Redis logging is not supported on PhpRedis %s and has been automatically disabled, disable logging in config to suppress this warning', $phpRedisVersion), E_USER_WARNING);
+        }
+
         $phpredisDef = new Definition($container->getParameter('snc_redis.phpredis_client.class'));
         if ($client['logging']) {
             $phpredisDef = new Definition($container->getParameter('snc_redis.phpredis_connection_wrapper.class'));
@@ -290,6 +296,12 @@ class SncRedisExtension extends Extension
         }
         if (null !== $dsn->getDatabase()) {
             $phpredisDef->addMethodCall('select', array($dsn->getDatabase()));
+        }
+        if ($client['options']['serialization']) {
+            $phpredisDef->addMethodCall(
+                'setOption',
+                array(\Redis::OPT_SERIALIZER, $this->loadSerializationType($client['options']['serialization']))
+            );
         }
         $container->setDefinition($phpredisId, $phpredisDef);
 
@@ -337,6 +349,10 @@ class SncRedisExtension extends Extension
     protected function loadDoctrine(array $config, ContainerBuilder $container)
     {
         foreach ($config['doctrine'] as $name => $cache) {
+            if (empty($cache['entity_managers']) && empty($cache['document_managers'])) {
+                throw new InvalidConfigurationException(sprintf('Enabling the doctrine %s section requires it to reference either an entity manager or document manager', $name));
+            }
+
             if ('second_level_cache' === $name) {
                 $name = 'second_level_cache.region_cache_driver';
             }
@@ -421,7 +437,33 @@ class SncRedisExtension extends Extension
     }
 
     /**
-     * Loads the profiler storage configuration.
+     * Load the correct serializer for Redis
+     *
+     * @param string $type
+     *
+     * @return string
+     * @throws InvalidConfigurationException
+     */
+    public function loadSerializationType($type)
+    {
+        $types = array(
+            'default' => \Redis::SERIALIZER_NONE,
+            'none' => \Redis::SERIALIZER_NONE,
+            'php' => \Redis::SERIALIZER_PHP
+        );
+
+        if (defined('Redis::SERIALIZER_IGBINARY')) {
+            $types['igbinary'] = \Redis::SERIALIZER_IGBINARY;
+        }
+
+        if (array_key_exists($type, $types)) {
+            return $types[$type];
+        }
+
+        throw new InvalidConfigurationException(sprintf('%s in not a valid serializer. Valid serializers: %s', $type, implode(", ", array_keys($types))));
+    }
+
+     /* Loads the profiler storage configuration.
      *
      * @param array            $config    A configuration array
      * @param ContainerBuilder $container A ContainerBuilder instance
